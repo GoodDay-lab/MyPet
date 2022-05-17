@@ -1,10 +1,13 @@
+from locale import YESEXPR
 import pygame
-from os import listdir
+from os import listdir, stat
 from time import time
 
+from movement import *
+
 pygame.init()
-X, Y = pygame.display.get_desktop_sizes()[0]
-screen = pygame.display.set_mode((X, Y))
+screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+X, Y = screen.get_size()
 pygame.display.set_caption('Мой питомец')
 clock = pygame.time.Clock()
 
@@ -54,7 +57,7 @@ def load_sprites():
         # if file == 'полная миска.png':
         #     x, y = X // 6.5, Y // 5.5
         if file == 'магазин.png':
-            x, y = X // 1.5, Y
+            x, y = X // 2, Y
         if file == 'маленький корм.png':
             x, y = X // 6.5, Y // 5.5
         if file == 'корм средний.png':
@@ -72,6 +75,8 @@ def load_sprites():
         if file == 'кнопка kitchen.png':
             x, y = X // 10, Y // 8
         if file == 'кнопка back.png':
+            x, y = X // 10, Y // 8
+        if file == 'корзина.png':
             x, y = X // 10, Y // 8
         sprites[file] = pygame.transform.scale(pygame.image.load(path + file), (x, y))
 
@@ -94,19 +99,19 @@ class Pet:
         self.anims = kwargs
 
     def play(self):
-        set_params(pet, health=-5, sleep=-10, satiety=-20, purity=-10, happy=20)
+        set_params(self, health=-5, sleep=-10, satiety=-20, purity=-10, happy=20)
 
     def sleep(self):
-        set_params(pet, health=-2, sleep=100, satiety=-50, purity=-5, happy=-10)
+        set_params(self, health=-2, sleep=100, satiety=-50, purity=-5, happy=-10)
 
     def eat(self, count):
-        set_params(pet, sleep=-10, satiety=count)
+        set_params(self, sleep=-10, satiety=count)
 
     def walk(self):
-        set_params(pet, sleep=-50, satiety=-20, purity=0, happy=50)
+        set_params(self, sleep=-50, satiety=-20, purity=0, happy=50)
 
     def hospital(self):
-        set_params(pet, health=100)
+        set_params(self, health=100)
 
     def set_status(self):
         pass
@@ -270,21 +275,85 @@ def go_kitchen(screen):
 
 
 def go_shop(screen):
+    
+    class ShopProduct(pygame.sprite.Sprite):
+        def __init__(self, image):
+            super().__init__()
+            self.shop = None
+            self.image = image
+            self.rect = self.image.get_rect()
+        
+        def event_hook(self, e):
+            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1 and self.rect.collidepoint(e.pos):
+                self.shop.choose(self)
+                move = Movement(self, (4, -math.atan2(Y - self.rect.centery, X * 0.5 - self.rect.centerx)), 
+                                (8, math.pi / 2), limit_func=lambda move: move.obj.rect.center[1] >= Y - 50)
+                moves.add(move)
+    
+    class ShopProducts(pygame.sprite.Group):
+        def __init__(self, *products):
+            super().__init__(*products)
+            self.table = [[0, 0, 0, 0], [0, 0, 0, 0]]
+            self.goods = []
+        
+        def add_product(self, product):
+            for ri, row in enumerate(self.table):
+                if not all(row):
+                    for ci, col in enumerate(row):
+                        if col:
+                            continue
+                        self.table[ri][ci] = product
+                        product.rect.x = (ci + 1) * (X) / 6
+                        product.rect.y = (ri + 1) * (Y) / 4
+                        product.shop = self
+                        self.add(product)
+                        return
+            
+        def choose(self, obj):
+            if not any(obj in l for l in self.table):
+                return
+            self.goods.append(obj)
+            
+    moves = Movements()
+    
+    static = pygame.sprite.Group()
+    background = pygame.sprite.Sprite(static)
+    background.rect = pygame.Rect(0, 0, X * 1, Y)
+    background.image = pygame.transform.scale(sprites['магазин.png'], background.rect.size)
+    
+    products = ShopProducts()
+    backpack = pygame.sprite.Sprite(products)
+    backpack.rect = pygame.Rect(X * 0.20, Y * 0.80, X * 0.6, Y * 0.2)
+    backpack.image = pygame.transform.scale(sprites['корзина.png'], backpack.rect.size)
+    products.add_product(ShopProduct(sprites['маленький корм.png']))
+    products.add_product(ShopProduct(sprites['корм средний.png']))
+    products.add_product(ShopProduct(sprites['большой корм.png']))
+    products.add_product(ShopProduct(sprites['большой корм.png']))
+    products.add_product(ShopProduct(sprites['большой корм.png']))
+    products.add_product(ShopProduct(sprites['большой корм.png']))
+    products.add_product(ShopProduct(sprites['большой корм.png']))
+    products.add_product(ShopProduct(sprites['большой корм.png']))
+    products.add_product(ShopProduct(sprites['большой корм.png']))
+    products.add_product(ShopProduct(sprites['большой корм.png']))
+    
+    
     time_now = time()
-    for i in range(255):
+    for i in range(2):
         screen.fill((0, 0, 0))
         update_screen()
     while time() - time_now < 120:
-        screen.blit(sprites['магазин.png'], (X // 6, 0)) and (X // 1.5, Y)
-        screen.blit(sprites['маленький корм.png'], (X * 0.2, Y * 0.25)) and (X // 6.5, Y // 5.5)
-        screen.blit(sprites['корм средний.png'], (X * 0.4, Y * 0.25)) and (X // 6.5, Y // 5.5)
-        screen.blit(sprites['большой корм.png'], (X * 0.6, Y * 0.25)) and (X // 2.5, Y // 4.5)
+        static.draw(screen)
+        products.draw(screen)
         screen.blit(sprites['кнопка back.png'], (X * 0.16, Y * 0.08)) and (X // 10, Y // 8)
         button_back.draw(screen)
+        moves.update()
 
         for event in pygame.event.get():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 button_back.check_press(pygame.mouse.get_pos())
+                for prod in products:
+                    if hasattr(prod, "event_hook"):
+                        prod.event_hook(event)
         update_screen()
 
 

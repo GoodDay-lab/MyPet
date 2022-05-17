@@ -3,13 +3,14 @@ import pygame
 
 
 class Movement:
-    def __init__(self, obj, fps, start_force, *forces):
+    def __init__(self, obj, start_force, *forces, limit_func=None):
         self.time = 0
-        self.interval = 1 / 40
+        self.interval = 1 / 30
         self.time += self.interval * 3
         self.obj = obj
         self.forces = []
         self.start_force = start_force
+        self.limit_func = limit_func
         
         for force in forces:
             self.forces.append({
@@ -18,6 +19,9 @@ class Movement:
             })
     
     def update(self):
+        if self.limit_func:
+            if self.limit_func(self):
+                return
         self.time += self.interval
         start_force = self.start_force
         move = [0, 0]
@@ -25,7 +29,7 @@ class Movement:
         for force in self.forces:
             move[0] += force['value'] * math.cos(force['angle'])
             move[1] += force['value'] * math.sin(force['angle'])
-        
+
         if hasattr(self.obj, "rect"):
             self.obj.rect.x += start_force[0] * math.cos(start_force[1]) * self.time + move[0] * math.pow(self.time, 2) / 2
             self.obj.rect.y += start_force[0] * math.sin(start_force[1]) * self.time + move[1] * math.pow(self.time, 2) / 2
@@ -66,7 +70,8 @@ def testing():
             self.rect = pygame.Rect(*pos, size * 2, size * 2)
             self.rect.x -= size
             self.rect.y -= size
-            movements.add(Movement(self, fps, (random.random() * 4 + 1, +(random.random() + 3) * 2 *math.pi), (7, math.pi / 2)))
+            movements.add(Movement(self, (random.random() * 2 + 1, (random.random() + 3) * 2 *math.pi),
+                                   (3, math.pi / 2), (25, math.pi), (15, math.pi)))
     
     balls = []
     is_running = True
@@ -93,4 +98,5 @@ def testing():
         movements.update()
 
 
-testing()
+if __name__ == '__main__':
+    testing()
