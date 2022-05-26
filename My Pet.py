@@ -1,8 +1,10 @@
 import pygame
 from os import listdir, stat
 from time import time
+from sqlite3 import connect
 
 from movement import *
+
 
 pygame.init()
 screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
@@ -18,7 +20,7 @@ sprites = {}
 
 
 DOG_CRDS_MAIN = (X * 0.35, Y * 0.6)
-DOG_CRDS_KTCH = (X * 0.35, Y * 0.6)
+DOG_CRDS_KTCH = (X * 0.35, Y * 0.58)
 
 
 class Animation(pygame.sprite.Sprite):
@@ -104,6 +106,40 @@ def load_sprites():
             x, y = X // 3.5, Y // 2.5
         if file == 'мяч в правой.png':
             x, y = X // 3.5, Y // 2.5
+        if file == 'задания.png':
+            x, y = X // 3.5, Y // 2.5
+        if file == 'кнопка back_2.png':
+            x, y = X // 10, Y // 8
+        if file == 'кнопка играть.png':
+            x, y = X // 3, Y // 4
+        if file == 'кнопка выход.png':
+            x, y = X // 3, Y // 4
+        if file == 'фон.png':
+            x, y = X, Y
+        if file == 'меню.png':
+            x, y = X // 10, Y // 8
+        if file == 'кнопка да.png':
+            x, y = X // 10, Y // 8
+        if file == 'кнопка нет.png':
+            x, y = X // 10, Y // 8
+        if file == 'Хотите приобрести.png':
+            x, y = X // 10, Y // 8
+        if file == 'Pedegree.png':
+            x, y = X // 6.5, Y // 5.5
+        if file == 'Purina Pro Plan.png':
+            x, y = X // 6.5, Y // 5.5
+        if file == 'Barking Heads.png':
+            x, y = X // 6.5, Y // 5.5
+        if file == 'Chappi.png':
+            x, y = X // 6.5, Y // 5.5
+        if file == 'Grandorf.png':
+            x, y = X // 6.5, Y // 5.5
+        if file == 'Щетка для лап.png':
+            x, y = X // 6.5, Y // 5.5
+        if file == 'Душ.png':
+            x, y = X // 6.5, Y // 5.5
+        if file == 'Косточка для зубов.png':
+            x, y = X // 6.5, Y // 5.5
         sprites[file] = pygame.transform.scale(pygame.image.load(path + file), (x, y))
 
 
@@ -115,6 +151,23 @@ dog_ears = Animation([sprites['закрытые глаза.png'], sprites['от�
                      1, DOG_CRDS_KTCH)
 dog_play = Animation([sprites['мяч в левой.png'], sprites['мяч в правой.png']],
                      1, DOG_CRDS_MAIN)
+
+
+class Field:
+    def __init__(self, x, y, width, height):
+        self.x, self.y, self.width, self.height, self.action = x, y, width, height, 1
+        self.text, self.active = '', False
+        self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
+
+    def draw(self):
+        pygame.draw.rect(screen, (100, 100, 100), self.rect)
+        screen.blit(font40.render(self.text, True, (0, 0, 0)), (self.x + self.width * 0.05, self.height * 0.4))
+
+    def check_press(self, pos):
+        if (self.x <= pos[0] <= self.x + self.width) and (self.y <= pos[1] <= self.y + self.height):
+            self.active = True
+        else:
+            self.active = False
 
 
 class Pet:
@@ -141,10 +194,10 @@ class Pet:
         }
 
     def play(self):
-        set_params(self, health=-5, sleep=-10, satiety=-20, happy=20)
+        set_params(self, health=-5, sleep=-10, satiety=-20, purity=0, happy=20)
 
     def sleep(self):
-        set_params(self, health=-2, sleep=100, satiety=-50, happy=-10)
+        set_params(self, health=-2, sleep=100, satiety=-50, purity=0, happy=-10)
 
     def eat(self, count):
         set_params(self, sleep=-10, satiety=count)
@@ -160,10 +213,11 @@ class Pet:
 
     def draw(self, screen):
         screen.blit(self.actions[self.status].image, self.actions[self.status].crds)
+        self.actions[self.status].update(0.05)
 
 
 class Button:
-    def __init__(self, text, x, y, width, height, action, texture_still, texture_active):
+    def __init__(self, text, x, y, width, height, texture_still, texture_active, action=None):
         self.text = text
         self.x = x
         self.y = y
@@ -181,7 +235,13 @@ class Button:
 
     def check_press(self, pos):
         if (self.x <= pos[0] <= self.x + self.width) and (self.y <= pos[1] <= self.y + self.height):
-            self.action(screen)
+            if self.action:
+                self.action(screen)
+            else:
+                query_database(f'UPDATE `player` SET `LVL` = "{pet.level}", `EXP` = {pet.exp}, `cash` = {pet.cash}, `name` = "{pet.name}", \
+`p_health` = {pet.health}, `p_sleep` = {pet.sleep}, `p_satiety` = {pet.satiety}, `p_purity` = {pet.purity}, `p_happy` = {pet.happy}')
+
+
 
 
 class Indicator:
@@ -271,6 +331,27 @@ def update_screen():
     clock.tick(FPS)
 
 
+def menu(screen):
+    running_menu = True
+    button_entrance = Button(text='', x=X * 0.35, y=Y * 0.25, height=Y // 4, width=X // 3, action=main,
+                          texture_active=sprites['кнопка играть.png'], texture_still=sprites['кнопка играть.png'])
+    button_output = Button(text='', x=X * 0.35, y=Y * 0.55, height=Y // 4, width=X // 3,
+                             texture_active=sprites['кнопка выход.png'], texture_still=sprites['кнопка выход.png'])
+    while running_menu:
+        screen.fill((0, 0, 0))
+        screen.blit(sprites['фон.png'], (0, 0))
+        button_entrance.draw(screen)
+        button_output.draw(screen)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running_menu = False
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                button_entrance.check_press(pygame.mouse.get_pos())
+                button_output.check_press(pygame.mouse.get_pos())
+        clock.tick(FPS)
+        pygame.display.flip()
+
+
 def go_sleep(screen):
     time_now = time()
     for i in range(255):
@@ -300,6 +381,25 @@ def go_walk(screen):
         update_screen()
     for i in range(255):
         screen.fill((255, 255, 255))
+        update_screen()
+
+
+def query_database(query):
+    result = db_cursor.execute(query).fetchall()
+    if query.split()[0] != 'SELECT':
+        db_connect.commit()
+    return result
+
+
+def tasks(screen):
+    time_now = time()
+    while time() - time_now < 120:
+        screen.blit(sprites['задания.png'], (X * 0.5, Y * 0.25)) and (X // 2, Y // 1.5)
+        button_tasks.draw(screen)
+        button_back_2.draw(screen)
+        for event in pygame.event.get():
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                button_back_2.check_press(pygame.mouse.get_pos())
         update_screen()
 
 
@@ -338,10 +438,13 @@ def go_kitchen(screen):
 def go_shop(screen):
     
     class ShopProduct(pygame.sprite.Sprite):
-        def __init__(self, image):
+        def __init__(self, image, name, price, effect):
             super().__init__()
             self.shop = None
             self.image = image
+            self.price = price
+            self.effect = effect
+            self.name = name
             self.rect = self.image.get_rect()
         
         def event_hook(self, e):
@@ -375,7 +478,17 @@ def go_shop(screen):
                 return
             self.goods.append(obj)
 
+    def open_window(screen, product):
+        if product:
+            screen.blit(sprites['Хотите приобрести.png'], (X * 0.5, Y * 0.25))
+            screen.blit(font40.render(f'название товара: {product.name}', True, (0, 0, 0)), (X * 0.20, Y * 0.70))
+            screen.blit(font40.render(f'цена товара: {product.price}', True, (0, 0, 0)), (X * 0.20, Y * 0.80))
+            screen.blit(font40.render(f'Восстанавливет: {product.effect}%', True, (0, 0, 0)), (X * 0.20, Y * 0.90))
+            button_yes.draw(screen)
+            button_no.draw(screen)
 
+    def close_window(screen, product):
+        pass
 
     moves = Movements()
     
@@ -387,22 +500,31 @@ def go_shop(screen):
     products = ShopProducts()
     backpack = pygame.sprite.Sprite(products)
     backpack.rect = pygame.Rect(X * 0.20, Y * 0.80, X * 0.6, Y * 0.2)
-    products.add_product(ShopProduct(sprites['маленький корм.png']))
-    products.add_product(ShopProduct(sprites['корм средний.png']))
-    products.add_product(ShopProduct(sprites['большой корм.png']))
+    # products.add_product(ShopProduct(sprites['маленький корм.png']))
+    # products.add_product(ShopProduct(sprites['корм средний.png']))
     # products.add_product(ShopProduct(sprites['большой корм.png']))
-    products.add_product(ShopProduct(sprites['маленький корм.png']))
-    # products.add_product(ShopProduct(sprites['большой корм.png']))
-    # products.add_product(ShopProduct(sprites['большой корм.png']))
-    # products.add_product(ShopProduct(sprites['большой корм.png']))
-    # products.add_product(ShopProduct(sprites['большой корм.png']))
-    # products.add_product(ShopProduct(sprites['большой корм.png']))
+    # # products.add_product(ShopProduct(sprites['большой корм.png']))
+    # products.add_product(ShopProduct(sprites['маленький корм.png']))
+    # # products.add_product(ShopProduct(sprites['большой корм.png']))
+    # # products.add_product(ShopProduct(sprites['большой корм.png']))
+    # # products.add_product(ShopProduct(sprites['большой корм.png']))
+    # # products.add_product(ShopProduct(sprites['большой корм.png']))
+    # # products.add_product(ShopProduct(sprites['большой корм.png']))
+    result = query_database('SELECT name, price, effect FROM products')
+    for product in result:
+        products.add_product(ShopProduct(sprites[f'{product[0]}.png'], product[0], product[1], product[2]))
     backpack.image = pygame.transform.scale(sprites['корзина.png'], backpack.rect.size)
     
     time_now = time()
     for i in range(2):
         screen.fill((0, 0, 0))
         update_screen()
+    active_product = None
+    button_yes = Button(text='', x=X * 0.19, y=Y * 0.734, height=Y // 3.5, width=X // 4.5, action=open_window,
+                        texture_active=sprites['кнопка да.png'], texture_still=sprites['кнопка да.png'])
+    button_no = Button(text='', x=X * 0.17, y=Y * 0.734, height=Y // 3.5, width=X // 4.5, action=open_window,
+                       texture_active=sprites['кнопка нет.png'], texture_still=sprites['кнопка нет.png'])
+
     while time() - time_now < 120:
         static.draw(screen)
         products.draw(screen)
@@ -413,17 +535,24 @@ def go_shop(screen):
         for event in pygame.event.get():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 button_back.check_press(pygame.mouse.get_pos())
+                button_yes.check_press(pygame.mouse.get_pos())
+                button_no.check_press(pygame.mouse.get_pos())
                 for prod in products:
-                    if hasattr(prod, "event_hook"):
-                        prod.event_hook(event)
+                    active_product = prod
+                    # if hasattr(prod, "event_hook"):
+                    #     prod.event_hook(event)
+        window(screen, product=active_product)
         update_screen()
 
 
+
 def go_play(screen):
-    if pet.playing is True:
-        pet.status = 'dog_play'
+    pet.status = 'dog_play'
     update_screen()
     print(1)
+
+
+
 
 
 def main(screen):
@@ -449,11 +578,24 @@ def main(screen):
         # screen.blit(sprites['мяч между лап.png'], (X * 0.35, Y * 0.6))
         # screen.blit(sprites['мяч в левой.png'], (X * 0.35, Y * 0.6))
         # screen.blit(sprites['мяч в правой.png'], (X * 0.35, Y * 0.6))
-        dog_sitting.update(0.1)
+        # screen.blit(sprites['задания.png'], (X * 0.6, Y * 0.25))
+        # screen.blit(sprites['кнопка да.png'], (X * 0.4, Y * 0.25))
+        # screen.blit(sprites['кнопка нет.png'], (X * 0.8, Y * 0.25))
+        # screen.blit(sprites['хотите приобрести.png'], (X * 0.6, Y * 0.25))
+        # screen.blit(sprites['Pedegree.png'], (X * 0.2, Y * 0.25))
+        # screen.blit(sprites['Purina Pro Plan.png'], (X * 0.4, Y * 0.25))
+        # screen.blit(sprites['Barking Heads.png'], (X * 0.6, Y * 0.25))
+        # screen.blit(sprites['Chappi.png'], (X * 0.2, Y * 0.27))
+        # screen.blit(sprites['Grandorf.png'], (X * 0.4, Y * 0.27))
+        # screen.blit(sprites['Щетка для лап.png'], (X * 0.6, Y * 0.27))
+        # screen.blit(sprites['Душ.png'], (X * 0.2, Y * 0.29))
+        # screen.blit(sprites['Косточка для зубов.png'], (X * 0.4, Y * 0.29))
+
         screen.blit(sprites['кнопка play.png'], (X * 0.15, Y * 0.2))
         screen.blit(sprites['кнопка walk.png'], (X * 0.15, Y * 0.35))
         screen.blit(sprites['кнопка hospital.png'], (X * 0.15, Y * 0.5))
         screen.blit(sprites['кнопка kitchen.png'], (X * 0.15, Y * 0.65))
+        screen.blit(sprites['меню.png'], (X * 0.69, Y * 0.18))
 
 
         button_sleep.draw(screen)
@@ -462,16 +604,15 @@ def main(screen):
         button_hospital.draw(screen)
         button_pc.draw(screen)
         button_play.draw(screen)
+        button_tasks.draw(screen)
 
         indicator_HP.draw(screen)
         indicator_eat.draw(screen)
         indicator_sleep.draw(screen)
         indicator_happy.draw(screen)
 
-        dog_sitting.update(0.05)
-        screen.blit(dog_sitting.image, DOG_CRDS_MAIN)
-
-        go_play(screen)
+        field = Field(x=X * 0.593, y=Y * 0.75, height=Y // 6,  width=X // 12)
+        field.draw()
         # home.update(screen)
         pet.draw(screen)
 
@@ -489,9 +630,13 @@ def main(screen):
                 button_kitchen.check_press(pygame.mouse.get_pos())
                 button_pc.check_press(pygame.mouse.get_pos())
                 button_back.check_press(pygame.mouse.get_pos())
+                button_tasks.check_press(pygame.mouse.get_pos())
+                button_back_2.check_press(pygame.mouse.get_pos())
+                button_play.check_press(pygame.mouse.get_pos())
+
 
             if event.type == pygame.MOUSEBUTTONUP:
-                pet.playing = False
+                pet.status = 'dog_sitting'
 
             if event.type == pygame.KEYDOWN:
                 print('key')
@@ -506,7 +651,11 @@ def main(screen):
 
 
 load_sprites()
-pet = Pet('Бобик')# , close_eyes=dog_close_eyes, open_eyes=dog_open_eyes, up_tail=dog_Up_tail)
+db_connect = connect('MyPetDB.sqlite')
+db_cursor = db_connect.cursor()
+r = query_database(f'SELECT * FROM player')
+pet = Pet(name=r[0][2], level=r[0][0], exp=r[0][1], cash=r[0][3], health=r[0][4], sleep=r[0][5], satiety=r[0][6],
+          purity=r[0][6], happy=r[0][7])
 # home = Home(**items)
 
 button_sleep = Button(text='', x=X * 0.17, y=Y * 0.734, height=Y // 3.5, width=X // 4.5, action=go_sleep,
@@ -521,14 +670,19 @@ button_pc = Button(text='', x=X * 0.58, y=Y * 0.5, height=Y // 4, width=X // 5, 
                    texture_active=sprites['пк.png'], texture_still=sprites['пк.png'])
 button_back = Button(text='', x=X * 0.16, y=Y * 0.08, height=Y // 8, width=X // 10, action=main,
                      texture_active=sprites['кнопка back.png'], texture_still=sprites['кнопка back.png'])
-button_play = Button(text='', x=X * 0.15, y=Y * 0.2,height=Y // 8, width=X // 10, action=go_play,
+button_back_2 = Button(text='', x=X * 0.69, y=Y * 0.25, height=Y // 10, width=X // 10, action=main,
+                      texture_active=sprites['кнопка back_2.png'], texture_still=sprites['кнопка back_2.png'])
+button_play = Button(text='', x=X * 0.15, y=Y * 0.2, height=Y // 8, width=X // 10, action=go_play,
                      texture_active=sprites['кнопка play.png'], texture_still=sprites['кнопка play.png'])
-
+button_tasks = Button(text='', x=X * 0.593, y=Y * 0.75, height=Y // 6,  width=X // 12, action=tasks,
+                      texture_active=sprites['задачи.png'], texture_still=sprites['задачи.png'])
 indicator_HP = Indicator(X * 0.16, Y * 0.01, X // 25, Y // 25, pet.health, sprites['сердце.png'])
 indicator_eat = Indicator(X * 0.22, Y * 0.01, X // 25, Y // 25, pet.satiety, sprites['куриная ножка.png'])
 indicator_sleep = Indicator(X * 0.28, Y * 0.01, X // 25, Y // 25, pet.sleep, sprites['кровать.png'])
 indicator_happy = Indicator(X * 0.34, Y * 0.01, X // 25, Y // 25, pet.happy, sprites['смайлик.png'])
 
+font40 = pygame.font.SysFont('Comic Sans Ms', 40)
 
 if __name__ == '__main__':
-    main(screen)
+    menu(screen)
+
